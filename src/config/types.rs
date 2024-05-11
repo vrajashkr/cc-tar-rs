@@ -1,9 +1,9 @@
-pub enum Mode {
+pub enum TarMode {
     Create,
     List
 }
 
 pub struct Config {
-    pub mode: Mode,
+    pub mode: TarMode,
     pub block_size: usize
 }

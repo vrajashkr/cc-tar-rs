@@ -1,15 +1,15 @@
 use std::{io::{self, Error, Read}, str::from_utf8};
 
-use crate::config::config::{self, Config};
+use crate::config::types::{Config, TarMode};
 
 use super::{constants::DEFAULT_BLOCK_SIZE_BYTES, types::{Archive, ArchivedFile}};
 
 pub fn run_tar(config: &Config) {
     match config.mode {
-        config::Mode::List => {
+        TarMode::List => {
             list_contents(config)
         },
-        config::Mode::Create => {
+        TarMode::Create => {
             println!("Not supported yet!")
         }
     }
@@ -26,7 +26,7 @@ fn list_contents(_: &Config) {
     }
 }
 
-fn process_archive(data: &Vec<u8>) -> Archive {
+fn process_archive(data: &[u8]) -> Archive {
     let mut archive: Archive = Archive { contents: Vec::new() };
     let mut current_block_num: usize = 0;
     let mut empty_terminal_block_count: usize = 0;
@@ -58,8 +58,8 @@ fn process_archive(data: &Vec<u8>) -> Archive {
                 current_block_num += 1;
             },
             Some(archived_file) => {
-                let mut block_count_for_file = 1 + (&archived_file.file_size / DEFAULT_BLOCK_SIZE_BYTES);
-                if &archived_file.file_size % DEFAULT_BLOCK_SIZE_BYTES > 0 {
+                let mut block_count_for_file = 1 + (archived_file.file_size / DEFAULT_BLOCK_SIZE_BYTES);
+                if archived_file.file_size % DEFAULT_BLOCK_SIZE_BYTES > 0 {
                     block_count_for_file += 1;
                 }
                 current_block_num += block_count_for_file;
