@@ -3,10 +3,10 @@
 
 Inspired by [Coding Challenges](https://codingchallenges.fyi/challenges/challenge-tar/)
 
-# What it does
+## What it does
 The goal is to match the basic functionality of GNU `tar` for UStar formatted tarballs.
 
-# Usage
+## Usage
 `cc-tar-rs` can be built using `cargo` with:
 `cargo build --release`
 
@@ -22,13 +22,13 @@ tar -cf test-archive.tar file1.txt file2.txt file3.txt file4.txt
 cat ./test-archive.tar | ./target/release/cc-tar-rs -t
 ```
 
-# Contributing
+## Contributing
 This is a personal project I'm worked on with the intention of learning Rust and learning how to work with binary and open standards. Contributions aren't welcome at this time, but maybe in future :)
 
-# References
+## References
 [Wikipedia article about tar](https://en.wikipedia.org/wiki/Tar_(computing))
 
 [GNU tar handbook](https://www.gnu.org/software/tar/manual/)
 
-# License
+## License
 Licensed under the [Apache License Version 2.0](LICENSE)
