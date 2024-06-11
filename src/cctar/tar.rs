@@ -1,6 +1,7 @@
-use std::{io::{self, Error, Read}, str::from_utf8};
+use std::str::from_utf8;
 
-use crate::config::types::{Config, TarMode};
+use crate::config::types::{Config, InputSource, TarMode};
+use crate::cctar::io::{read_stdin, read_file};
 
 use super::{constants::DEFAULT_BLOCK_SIZE_BYTES, types::{Archive, ArchivedFile}};
 
@@ -15,10 +16,16 @@ pub fn run_tar(config: &Config) {
     }
 }
 
-fn list_contents(_: &Config) {
-    let file_contents = read_stdin().unwrap_or_else(|err| {
-        panic!("failed to read from stdin {:?}", err);
-    });
+fn list_contents(cfg: &Config) {
+    let file_contents: Vec<u8> = if cfg.input_src == InputSource::File {
+        read_file(cfg.input_file.as_str()).unwrap_or_else(|err| {
+            panic!("failed to read from file {:?}", err);
+        })
+    } else {
+        read_stdin().unwrap_or_else(|err| {
+            panic!("failed to read from stdin {:?}", err);
+        })
+    };
 
     let archive = process_archive(&file_contents);
     for archived_file in archive.contents {
@@ -103,23 +110,4 @@ fn process_archive_file(data: &[u8], block_num: usize) -> Option<ArchivedFile> {
     };
 
     Some(file)
-}
-
-fn read_stdin() -> Result<Vec<u8>, Error>{
-    let mut contents: Vec<u8> = Vec::new();
-    let mut buffer = [0; 1024];
-    loop {
-        let read_result = io::stdin().read(&mut buffer);
-        match read_result {
-            Ok(n) => {
-                if n == 0 {
-                    break;
-                }
-                contents.extend(&buffer[0 .. n]);
-            },
-            Err(e) => { return Err(e);}
-        }
-        
-    }
-    Ok(contents)
 }
