@@ -20,6 +20,8 @@ echo "file 4 contents" > file4.txt
 tar -cf test-archive.tar file1.txt file2.txt file3.txt file4.txt
 
 cat ./test-archive.tar | ./target/release/cc-tar-rs -t
+OR
+./target/release/cc-tar-rs -t -f ./test-archive.tar
 ```
 
 ## Contributing
