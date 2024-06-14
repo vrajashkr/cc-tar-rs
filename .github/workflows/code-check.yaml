@@ -33,3 +33,11 @@ jobs:
       - name: functional tests
         run: |
           make functional-test
+  code_bench:
+    runs-on: ubuntu-latest
+    needs: code_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: benchmark application
+        run: |
+          make benchmark
