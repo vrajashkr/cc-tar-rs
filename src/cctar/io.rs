@@ -1,29 +1,22 @@
-use std::{fs::File, io::{stdin, Error, Read}};
+use std::io::{Error, Read};
 
-pub fn read_stdin() -> Result<Vec<u8>, Error>{
-    read_source(stdin())
-}
+use log::debug;
 
-pub fn read_file(path: &str) -> Result<Vec<u8>, Error>{
-    let f = File::open(path)?;
-    read_source(f)
-}
+use super::constants::DEFAULT_BLOCK_SIZE_BYTES;
 
-fn read_source<T: Read>(mut file: T) -> Result<Vec<u8>, Error>{
+pub fn read_source_512b<T: Read>(source: &mut T) -> Result<Vec<u8>, Error> {
     let mut contents: Vec<u8> = Vec::new();
-    let mut buffer = [0; 1024];
-    loop {
-        let read_result = file.read(&mut buffer);
-        match read_result {
-            Ok(n) => {
-                if n == 0 {
-                    break;
-                }
+    let mut buffer = [0; DEFAULT_BLOCK_SIZE_BYTES];
+    
+    let read_result = source.read(&mut buffer);
+    match read_result {
+        Ok(n) => {
+            debug!("read {} bytes from source", n);
+            if n != 0 {
                 contents.extend(&buffer[0 .. n]);
-            },
-            Err(e) => { return Err(e);}
-        }
-        
+            }
+        },
+        Err(e) => { return Err(e); }
     }
     Ok(contents)
 }
