@@ -1,9 +1,10 @@
+#[derive(Debug)]
 pub enum TarMode {
     Create,
     List
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum InputSource {
     Stdin,
     File

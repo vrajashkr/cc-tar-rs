@@ -7,6 +7,9 @@ pub mod cctar;
 pub mod config;
 
 fn main() {
+    // Initialize logging
+    env_logger::init();
+
     let mut cfg = Config{
         mode: TarMode::Create,
         block_size: constants::DEFAULT_BLOCK_SIZE_BYTES,
