@@ -16,7 +16,7 @@ jobs:
   code_check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: clippy check
         run: |
           make check
@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: code_check
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
       - name: install dependencies
@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: code_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: benchmark application
         run: |
           make benchmark
