@@ -1,6 +1,6 @@
 #!/bin/sh
 PROJECT_ROOT="$( git rev-parse --show-toplevel )"
-BINARY="${PROJECT_ROOT}/target/release/cc-tar-rs"
+BINARY="${PROJECT_ROOT}/target/release/cc-tar-cli"
 
 echo "comparing archive listing performance"
 echo "GNU tar"
