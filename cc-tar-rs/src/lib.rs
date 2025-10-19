@@ -1,54 +1,78 @@
-use std::fs::File;
-use std::io::{stdin, Read};
-use std::str::from_utf8;
-
 use log::debug;
+use std::{io::Read, str::from_utf8};
 
-use crate::cctar::types::ArchivedFileType;
-use crate::config::types::{Config, InputSource, TarMode};
-use crate::cctar::io::read_source_512b;
+use crate::{constants::DEFAULT_BLOCK_SIZE_BYTES, io::read_source_512b};
 
-use super::types::{TarSmState, TarStateMachine};
-use super::{constants::DEFAULT_BLOCK_SIZE_BYTES, types::{Archive, ArchivedFile}};
+pub mod constants;
+mod io;
 
-pub fn run_tar(config: &Config) {
-    debug!("tar running in {:?} mode", config.mode);
-    debug!("tar input source is {:?}", config.input_src);
-    match config.mode {
-        TarMode::List => {
-            list_contents(config)
-        },
-        TarMode::Create => {
-            println!("Not supported yet!")
-        }
+#[derive(Default)]
+pub struct Archive {
+    contents: Vec<ArchivedFile>,
+}
+
+impl Archive {
+    pub fn list(&self) -> &Vec<ArchivedFile> {
+        &self.contents
+    }
+
+    pub fn add_file(&mut self, file: ArchivedFile) {
+        self.contents.push(file);
     }
 }
 
-fn list_contents(cfg: &Config) {
-    let archive = if cfg.input_src == InputSource::File {
-        let mut file = File::open(cfg.input_file.as_str()).unwrap_or_else(|err| {
-            panic!("failed to open file {:?}", err);
-        });
-
-        read_archive(&mut file)
-    } else {
-        read_archive(&mut stdin())
-    };
-
-    for archived_file in archive.contents {
-        println!("{}{}", archived_file.file_name_prefix, archived_file.file_name);
-    }
+#[derive(PartialEq, Debug)]
+pub enum ArchivedFileType {
+    NormalFile,
+    HardLink,
+    SymbolicLink,
+    CharacterSpecial,
+    BlockSpecial,
+    Directory,
+    Fifo,
+    Unknown,
 }
 
-fn read_archive<T: Read>(source: &mut T) -> Archive {
-    let mut sm = TarStateMachine{
+#[derive(Debug)]
+pub struct ArchivedFile {
+    pub file_name: String,
+    pub file_size: usize,
+    pub file_name_prefix: String,
+    pub file_type: ArchivedFileType,
+}
+
+// states for the tar state machine
+#[derive(PartialEq, Debug)]
+pub enum TarSmState {
+    FileHeaderRead,
+    FileContentsRead,
+    TerminalBlockRead,
+    FileHeaderWrite,
+    FileContentsWrite,
+    TerminalBlockWrite,
+    EndOfArchive,
+}
+
+// state machine representing archive processing
+#[derive(Debug)]
+pub struct TarStateMachine {
+    pub state: TarSmState,
+    pub num_blocks_loaded: usize,
+    pub current_block_num: usize,
+    pub current_file_blocks_remaining: usize,
+}
+
+pub fn read_archive<T: Read>(source: &mut T) -> Archive {
+    let mut sm = TarStateMachine {
         state: TarSmState::FileHeaderRead,
         num_blocks_loaded: 0,
         current_block_num: 0,
-        current_file_blocks_remaining: 0
+        current_file_blocks_remaining: 0,
     };
 
-    let mut archive: Archive = Archive { contents: Vec::new() };
+    let mut archive: Archive = Archive {
+        contents: Vec::new(),
+    };
     // A tar archive is made of:
     // - 1 512-byte block for the header
     // - file_size in bytes / 512-bytes for the number of complete blocks for the file
@@ -69,7 +93,9 @@ fn read_archive<T: Read>(source: &mut T) -> Archive {
                 sm.current_block_num = sm.num_blocks_loaded;
                 process_archive_block(&byte_vec, &mut sm, &mut archive);
             }
-            Err(err) => { panic!("failed to read block from source {:?}", err); }
+            Err(err) => {
+                panic!("failed to read block from source {:?}", err);
+            }
         }
         if sm.state == TarSmState::EndOfArchive {
             break;
@@ -102,7 +128,7 @@ fn process_archive_block(data: &[u8], tar_sm: &mut TarStateMachine, archive: &mu
                     // The block is empty/corrupt. Treat it as a terminal for now.
                     // TODO: improve corrupt block detection. Empty != corrupt.
                     tar_sm.state = TarSmState::TerminalBlockRead;
-                }  
+                }
             }
         }
         TarSmState::FileContentsRead => {
@@ -124,13 +150,13 @@ fn process_archive_block(data: &[u8], tar_sm: &mut TarStateMachine, archive: &mu
             // If there are 2 subsequent empty blocks seen, it is considered as end-of-archive.
             let archived_file = process_archive_file_header(data);
             match archived_file {
-                Some(_) => { 
+                Some(_) => {
                     panic!("unexpected file header block");
                 }
                 None => {
                     // End of Archive
                     tar_sm.state = TarSmState::EndOfArchive;
-                }  
+                }
             }
         }
         _ => {}
@@ -139,65 +165,77 @@ fn process_archive_block(data: &[u8], tar_sm: &mut TarStateMachine, archive: &mu
 
 fn calculate_blocks_for_file_contents(archived_file: &ArchivedFile) -> usize {
     let num_full_blocks_for_file = archived_file.file_size / DEFAULT_BLOCK_SIZE_BYTES;
-    let num_partial_blocks_for_file = if archived_file.file_size % DEFAULT_BLOCK_SIZE_BYTES > 0 {
+    let num_partial_blocks_for_file = if !archived_file
+        .file_size
+        .is_multiple_of(DEFAULT_BLOCK_SIZE_BYTES)
+    {
         1
-    } else  {
+    } else {
         0
     };
     let num_content_blocks_for_file = num_full_blocks_for_file + num_partial_blocks_for_file;
-    debug!("num content blocks for file: {}", num_content_blocks_for_file);
+    debug!(
+        "num content blocks for file: {}",
+        num_content_blocks_for_file
+    );
 
     num_content_blocks_for_file
 }
 
 fn process_archive_file_header(block_data: &[u8]) -> Option<ArchivedFile> {
-
     let block_start = 0;
 
     // file name - offset 0 size 100 (0 - 99 inclusive)
-    let file_name = from_utf8(&block_data[block_start .. (block_start + 100)])
-                            .unwrap().trim_matches(char::from(0)).to_string();
+    let file_name = from_utf8(&block_data[block_start..(block_start + 100)])
+        .unwrap()
+        .trim_matches(char::from(0))
+        .to_string();
     if file_name.is_empty() {
         debug!("file name is empty");
         // if the file name is empty, then it is an empty block
-        return None
+        return None;
     }
     debug!("current file name: {}", file_name);
 
     // file size - offset 124 size 12 (124 - 135 inclusive)
     let file_size_start = block_start + 124;
-    let file_size_str = from_utf8(&block_data[file_size_start .. (file_size_start + 12)])
-                                .unwrap().trim_matches(char::from(0)).to_string();
+    let file_size_str = from_utf8(&block_data[file_size_start..(file_size_start + 12)])
+        .unwrap()
+        .trim_matches(char::from(0))
+        .to_string();
     debug!("current file size: {}", file_size_str);
     let file_size = usize::from_str_radix(&file_size_str, 8).unwrap();
 
     // file type - offset 156 size 1
     let file_type_start = block_start + 156;
-    let file_type_str = from_utf8(&block_data[file_type_start .. (file_type_start + 1)])
-                                .unwrap().to_string();
+    let file_type_str = from_utf8(&block_data[file_type_start..(file_type_start + 1)])
+        .unwrap()
+        .to_string();
     debug!("current file type string: {}", file_type_str);
     let file_type = match file_type_str.as_str() {
-        "0" => { ArchivedFileType::NormalFile },
-        "1" => { ArchivedFileType::HardLink },
-        "2" => { ArchivedFileType::SymbolicLink },
-        "3" => { ArchivedFileType::CharacterSpecial },
-        "4" => { ArchivedFileType::BlockSpecial },
-        "5" => { ArchivedFileType::Directory },
-        "6" => { ArchivedFileType::Fifo },
-        _ => { ArchivedFileType::Unknown }
+        "0" => ArchivedFileType::NormalFile,
+        "1" => ArchivedFileType::HardLink,
+        "2" => ArchivedFileType::SymbolicLink,
+        "3" => ArchivedFileType::CharacterSpecial,
+        "4" => ArchivedFileType::BlockSpecial,
+        "5" => ArchivedFileType::Directory,
+        "6" => ArchivedFileType::Fifo,
+        _ => ArchivedFileType::Unknown,
     };
 
     // file name prefix - offset 345 size 155 (345 to 499 inclusive)
     let prefix_start_size = block_start + 345;
-    let file_prefix = from_utf8(&block_data[prefix_start_size .. (prefix_start_size + 155)])
-                                .unwrap().trim_matches(char::from(0)).to_string();
+    let file_prefix = from_utf8(&block_data[prefix_start_size..(prefix_start_size + 155)])
+        .unwrap()
+        .trim_matches(char::from(0))
+        .to_string();
     debug!("current file prefix: {}", file_prefix);
 
-    let file = ArchivedFile{
+    let file = ArchivedFile {
         file_name,
         file_size,
         file_name_prefix: file_prefix,
-        file_type
+        file_type,
     };
 
     Some(file)

@@ -1,5 +1,5 @@
 PROJECT_ROOT="$( git rev-parse --show-toplevel )"
-BINARY="${PROJECT_ROOT}/target/release/cc-tar-rs"
+BINARY="${PROJECT_ROOT}/target/release/cc-tar-cli"
 TEST_RESULTS_DIR="${BATS_TEST_TMPDIR}/results"
 TEST_EXPECTATIONS_DIR="${BATS_TEST_TMPDIR}/expect"
 

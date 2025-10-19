@@ -1,0 +1,8 @@
+[package]
+name = "cc-tar-cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cc-tar-rs = { path = "../cc-tar-rs" }
+env_logger = "0.11.8"
